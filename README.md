@@ -44,67 +44,9 @@ library(eeptools)
 
 ---
 
-## 🧩 Estructura del proyecto
-
-```
-.
-├── config.yml               # Parámetros (fechas, semillas, rutas)
-├── R/
-│   ├── 01_load_insumos.R    # Lectura de insumos
-│   ├── 02_clean_match.R     # Limpieza y emparejamientos
-│   ├── 03_habilitacion.R    # Reglas A–I
-│   ├── 04_puntuacion.R      # Puntajes
-│   ├── 05_ordenamiento.R    # Desempates y semillas
-│   ├── 06_asignacion.R      # Cupos y estados
-│   └── utils.R              # Funciones auxiliares
-├── Inscritos/               # Archivos de convocatoria
-├── Insumos/                 # Fuentes externas (SIMAT, MEN, ICFES, SISBÉN)
-├── output/                  # Resultados finales (CSV/XLSX/HTML)
-├── Pagina/                  # Versión web (HTML tipo JE3)
-└── renv/                    # Entorno reproducible
-```
-
----
-
-## 🔁 Reproducibilidad
-
-- **Semillas fijas:** `set.seed(20250701)`
-- **Versionamiento:** control mediante `renv::init()`
-- **Orquestación:** `_targets.R` o `Makefile`
-- **Parámetros:** definidos en `config.yml`
-
-Ejemplo:
-
-```r
-install.packages("renv")
-renv::init()
-config <- yaml::read_yaml("config.yml")
-set.seed(config$seed_asignacion)
-```
-
----
-
-## 🌐 Sitio web explicativo
-
-El sitio web asociado está disponible en formato estático (HTML/Tailwind):  
-👉 [Página explicativa de FEST1](#) *(pendiente de enlace de despliegue)*
-
-Incluye:
-- Navegación lateral con secciones numeradas.  
-- Ejemplos de código en R y pseudo-código.  
-- Explicación de reglas de habilitación, puntajes y asignaciones.  
-- Sección de preguntas frecuentes.
-
----
 
 ## 📜 Licencia
 
-Este proyecto se distribuye bajo licencia **CC BY 4.0**.  
-Puedes reutilizar, citar o adaptar el código citando la fuente original.
+Este material explica a alto nivel el proceso de selección en JE3 – Bogotá, con base en el script operativo en R.
+Para consultas remitirse a https://www.agenciaatenea.gov.co/atencion-y-servicios-la-ciudadania
 
----
-
-## 📬 Contacto
-
-Equipo de Datos — [Agencia Atenea](https://www.agenciaatenea.gov.co)  
-📧 contacto: datos@agenciaatenea.gov.co
