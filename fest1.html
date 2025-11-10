@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FEST1 — ¿Cómo se calculan y validan los resultados? (Proyecto en R)</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { inter: ['Inter','sans-serif'] },
+          colors: {
+            indigo: { '700':'#4338CA', '800':'#3730A3', '900':'#312E81' }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body{ scroll-behavior:smooth; font-family:'Inter',sans-serif }
+    .nav-link.active{ background:#E0E7FF; color:#312E81; font-weight:600 }
+    pre{ background:#0b1220; color:#d1fae5; padding:1rem; border-radius:.5rem; overflow-x:auto; font-size:.9rem }
+    code.inline{ background:#e5e7eb; color:#4338CA; padding:.1rem .35rem; border-radius:.35rem }
+  </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800">
+  <!-- Header -->
+  <header class="bg-indigo-800 text-white p-6 shadow-lg rounded-b-lg">
+    <h1 class="text-3xl font-bold">FEST1 — ¿Cómo se calculan y validan los resultados? (R)</h1>
+    <p class="text-indigo-200 mt-1 text-lg">Explicado para público no técnico, con trazabilidad y reproducibilidad</p>
+  </header>
+
+  <div class="container mx-auto max-w-7xl mt-8">
+    <div class="flex flex-col md:flex-row">
+
+      <!-- Sidebar -->
+      <nav class="w-full md:w-1/4 p-4 md:sticky md:top-8 md:self-start md:h-[calc(100vh-4rem)] md:overflow-y-auto">
+        <h3 class="font-semibold text-gray-500 uppercase tracking-wide mb-3">Contenido</h3>
+        <ul class="space-y-2" id="nav-links">
+          <li><a href="#s1" class="nav-link block px-3 py-2 rounded-md">1. Visión general</a></li>
+          <li><a href="#s2" class="nav-link block px-3 py-2 rounded-md">2. Insumos y dependencias</a></li>
+          <li><a href="#s3" class="nav-link block px-3 py-2 rounded-md">3. Preparación y limpieza</a></li>
+          <li><a href="#s4" class="nav-link block px-3 py-2 rounded-md">4. Criterios de habilitación</a></li>
+          <li><a href="#s5" class="nav-link block px-3 py-2 rounded-md">5. Puntuación y ordenamiento</a></li>
+          <li><a href="#s6" class="nav-link block px-3 py-2 rounded-md">6. Asignación y estados</a></li>
+          <li><a href="#s7" class="nav-link block px-3 py-2 rounded-md">7. Reproducibilidad (R)</a></li>
+          <li><a href="#s8" class="nav-link block px-3 py-2 rounded-md">8. Estructura del proyecto</a></li>
+          <li><a href="#s9" class="nav-link block px-3 py-2 rounded-md">9. Preguntas frecuentes</a></li>
+          <li><a href="#s10" class="nav-link block px-3 py-2 rounded-md">10. Licencia y contacto</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main -->
+      <main class="w-full md:w-3/4 p-6 bg-white rounded-lg shadow-md space-y-12">
+
+        <!-- 1. Vision General -->
+        <section id="s1" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">1) Visión general</h2>
+          <ol class="list-decimal list-inside space-y-2 text-gray-700">
+            <li><strong>Cargue de insumos:</strong> se integran fuentes administrativas y de la convocatoria.</li>
+            <li><strong>Habilitación:</strong> reglas secuenciales determinan si una persona puede continuar.</li>
+            <li><strong>Puntuación:</strong> se combinan dimensiones de vulnerabilidad y mérito.</li>
+            <li><strong>Ordenamiento y desempates:</strong> se establece un orden reproducible.</li>
+            <li><strong>Asignación de cupos:</strong> se recorre persona → opciones por prioridad y localidad.</li>
+            <li><strong>Estados finales:</strong> ELEGIBLE / LISTA_ESPERA / NO_ELEGIBLE / DISPONIBLE.</li>
+          </ol>
+          <p class="mt-4 bg-indigo-50 p-4 rounded-lg text-indigo-800">Resultado: por persona y por oferta se publica un <strong>estado</strong>, y cuando aplica su <strong>puesto</strong> y <strong>fuente de asignación</strong>.</p>
+        </section>
+
+        <!-- 2. Insumos y dependencias -->
+        <section id="s2" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">2) Insumos y dependencias</h2>
+          <p class="mb-3">El proyecto se ejecuta en <strong>R</strong> con paquetes para lectura de archivos, depuración y análisis. Dependencias base:</p>
+          <pre><code># Paquetes base
+library(readxl)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(sqldf)
+library(openxlsx)
+library(eeptools)
+options(scipen = 999)
+
+# Lectura ejemplo (rutas relativas)
+inscritos &lt;- readxl::read_excel("Inscritos/20250626_FEST_PersonasUnicasCierreConvocatoria.xlsx")
+per_oferta &lt;- readxl::read_excel("Inscritos/20250626_FEST_PersonaOfertaCierreConvocatoria_V2.xlsx")
+          </code></pre>
+          <p class="text-sm text-gray-500">Sugerencia: use <code class="inline">renv</code> para fijar versiones y <code class="inline">here()</code> para rutas relativas.</p>
+        </section>
+
+        <!-- 3. Preparación y limpieza -->
+        <section id="s3" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">3) Preparación y limpieza</h2>
+          <p class="mb-2">Se estandarizan campos, se construyen llaves de emparejamiento y se consolidan fuentes (SIMAT/MEN/ICFES/SISBÉN/etc.).</p>
+          <pre><code># Normalizar nombres compuestos (sin tildes ni espacios)
+normalize &lt;- function(x){
+  x |&gt; toupper() |&gt; chartr("ÁÉÍÓÚÑ","AEIOUN", _) |&gt; gsub("\\\s","", _, perl = TRUE)
+}
+
+inscritos &lt;- inscritos |&gt; mutate(
+  NOMBRES_DEPURA = normalize(paste(PRIMER_NOMBRE, SEGUNDO_NOMBRE, PRIMER_APELLIDO, SEGUNDO_APELLIDO)),
+  NOMBRES_DEPURA2 = normalize(paste(PRIMER_NOMBRE, PRIMER_APELLIDO, NUMERO_DOC_ICFES))
+)
+
+# Union incremental (ejemplo)
+SIMAT_hist &lt;- purrr::map_df(2011:2025, function(y){
+  readr::read_delim(sprintf("Insumos/Consolidado/23-Simat_DescargasUsuario/%d-*.txt", y), delim = ";")
+})
+          </code></pre>
+          <p class="mt-2 text-sm text-gray-500">Nota: cuando falte coincidencia por documento, usar <em>fallbacks</em> por <code class="inline">NOMBRES_DEPURA</code> + <code class="inline">FECHA_NACIMIENTO</code> o por <code class="inline">NOMBRES_DEPURA2</code>.</p>
+        </section>
+
+        <!-- 4. Habilitación -->
+        <section id="s4" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">4) Criterios de habilitación (secuencial)</h2>
+          <p class="mb-3">La primera regla que falle <strong>inhabilita</strong>. Si ninguna falla, la persona queda <strong>HABILITADA</strong>.</p>
+          <pre><code># Edad de corte (ejemplo)
+inscritos$EDAD_CORTE &lt;- as.integer(
+  eeptools::age_calc(as.Date(inscritos$FECHA_NACIMIENTO), enddate = as.Date("2025-07-01"), units = "years", precise = TRUE)
+)
+
+# Secuencia (SQL sobre data.frame)
+res &lt;- sqldf("SELECT *, CASE
+  WHEN HABILITADO_A != 'HABILITADO' THEN 'INHABILITA_REQUISITO_A'
+  WHEN HABILITADO_B != 'HABILITADO' THEN 'INHABILITA_REQUISITO_B'
+  WHEN HABILITADO_C != 'HABILITADO' THEN 'INHABILITA_REQUISITO_C'
+  WHEN HABILITADO_D != 'HABILITADO' THEN 'INHABILITA_REQUISITO_D'
+  WHEN HABILITADO_E != 'HABILITADO' THEN 'INHABILITA_REQUISITO_E'
+  WHEN HABILITADO_F != 'HABILITADO' THEN 'INHABILITA_REQUISITO_F'
+  WHEN HABILITADO_H != 'HABILITADO' THEN 'INHABILITA_REQUISITO_H'
+  WHEN HABILITADO_I != 'HABILITADO' THEN 'INHABILITA_REQUISITO_I'
+  ELSE 'HABILITADO' END AS HABILITADO
+FROM inscritos")
+          </code></pre>
+          <p class="text-sm text-gray-500">Las banderas <code class="inline">HABILITADO_A..I</code> se calculan con base en evidencia (SICORE, MEN, SENA, etc.).</p>
+        </section>
+
+        <!-- 5. Puntuación y ordenamiento -->
+        <section id="s5" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">5) Puntuación y ordenamiento</h2>
+          <p class="mb-2">Se suman dimensiones y se ordena de forma reproducible. En caso de empate se aplican reglas sucesivas y, al final, sorteo con semilla fija.</p>
+          <pre><code># Cálculo de puntajes (ilustrativo)
+res &lt;- res |&gt; mutate(
+  PUNTAJE_VUL_ESTRUCT = pmin(15, rowSums(across(starts_with("VUL_"), ~ as.integer(.x == 1), .names = NULL), na.rm = TRUE)),
+  PUNTAJE_VUL_ECON    = dplyr::case_when(
+    SISBEN_GRUPO == 'A' ~ 40,
+    SISBEN_GRUPO == 'B' ~ 30,
+    SISBEN_GRUPO == 'C' ~ 20,
+    TRUE ~ 0
+  ),
+  PUNTAJE_MERITO      = dplyr::case_when(
+    PERIODO_SABER11 >= '2016-1' ~ scales::rescale(PERCENTIL_NACIONAL_GLOBAL, to = c(0,40)),
+    TRUE ~ dplyr::case_when(PUESTO <= 10 ~ 40, PUESTO <= 50 ~ 35, PUESTO <= 100 ~ 30, TRUE ~ 0)
+  ),
+  PUNTAJE_TRAY        = ifelse(TRAYECTORIA_PRIOR == 1, 5, 0),
+  PUNTAJE_GLOBAL      = PUNTAJE_VUL_ESTRUCT + PUNTAJE_VUL_ECON + PUNTAJE_MERITO + PUNTAJE_TRAY
+)
+
+# Orden y desempates reproducibles
+set.seed(20250701)
+res$SEMILLA &lt;- sample(seq_len(nrow(res)))
+
+ord &lt;- sqldf("SELECT ROW_NUMBER() OVER (ORDER BY
+  PUNTAJE_GLOBAL DESC,
+  SABER11_PUNTAJE_GLOBAL DESC,
+  SABER11_PUESTO ASC,
+  SISBEN_GRUPO ASC,
+  PUNTAJE_VUL_ESTRUCT DESC,
+  SEMILLA ASC) AS LLAVE_PER, * FROM res")
+          </code></pre>
+        </section>
+
+        <!-- 6. Asignación y estados -->
+        <section id="s6" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">6) Asignación y estados</h2>
+          <p class="mb-3">Se recorre a cada persona según <code class="inline">LLAVE_PER</code>, se evalúan opciones por prioridad y disponibilidad de cupos (con preferencia por misma localidad).</p>
+          <pre><code># Esbozo de lógica (pseudo-código R)
+for (id in ord$LLAVE_PER){
+  opciones &lt;- per_oferta |&gt; dplyr::filter(ID_PERSONA == id) |&gt; arrange(PRIORIDAD)
+  for (op in seq_len(nrow(opciones))){
+    oferta &lt;- opciones[op,]
+    if (hay_cupo(oferta)){
+      asignar(oferta, id)
+      break
+    }
+  }
+}
+
+# Estados posibles por persona-oferta
+# ELEGIBLE / LISTA_ESPERA / NO_ELEGIBLE / DISPONIBLE / INACTIVO
+          </code></pre>
+        </section>
+
+        <!-- 7. Reproducibilidad -->
+        <section id="s7" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">7) Reproducibilidad (R)</h2>
+          <ul class="list-disc list-inside space-y-2">
+            <li>Usar <code class="inline">renv::init()</code> para bloquear versiones de paquetes.</li>
+            <li>Exponer un <code class="inline">_targets.R</code> o <code class="inline">Makefile</code> para orquestación reproducible.</li>
+            <li>Semillas fijas en sorteos y ordenamientos (<code class="inline">set.seed()</code>).</li>
+            <li><strong>Rutas relativas</strong> y <strong>config.yml</strong> con parámetros (fechas de corte, semillas, etc.).</li>
+          </ul>
+          <pre><code># Ejemplo renv + here
+install.packages("renv")
+renv::init()
+config &lt;- yaml::read_yaml("config.yml")
+set.seed(config$seed_asignacion)
+base_dir &lt;- here::here()
+          </code></pre>
+        </section>
+
+        <!-- 8. Estructura del proyecto -->
+        <section id="s8" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">8) Estructura del proyecto</h2>
+          <pre><code>.
+├── config.yml               # Parámetros (fechas, semillas, rutas)
+├── R/
+│   ├── 01_load_insumos.R    # Lectura de insumos
+│   ├── 02_clean_match.R     # Limpieza/normalización y emparejamientos
+│   ├── 03_habilitacion.R    # Reglas A–I
+│   ├── 04_puntuacion.R      # Cálculos de puntaje
+│   ├── 05_ordenamiento.R    # Desempates + semilla
+│   ├── 06_asignacion.R      # Cupos y estados
+│   └── utils.R              # Utilidades comunes
+├── Inscritos/               # Archivos de la convocatoria
+├── Insumos/                 # Fuentes externas (SIMAT/MEN/ICFES/SISBÉN)
+├── output/                  # Resultados finales (CSV/XLSX/HTML)
+├── _targets.R | Makefile    # Orquestación
+└── renv/                    # Entorno reproducible
+          </code></pre>
+        </section>
+
+        <!-- 9. Preguntas frecuentes -->
+        <section id="s9" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">9) Preguntas frecuentes</h2>
+          <details class="mb-2 p-4 bg-indigo-50 rounded-md">
+            <summary class="font-semibold text-indigo-900">¿Cómo se prioriza localidad?</summary>
+            <p class="mt-2 text-sm text-indigo-900">Cuando exista la misma oferta en la localidad de residencia de la persona, se intenta asignar allí primero; si no hay cupo, se evalúan ofertas sin restricción territorial.</p>
+          </details>
+          <details class="mb-2 p-4 bg-indigo-50 rounded-md">
+            <summary class="font-semibold text-indigo-900">¿Qué pasa en caso de empate?</summary>
+            <p class="mt-2 text-sm text-indigo-900">Se aplican reglas sucesivas (p. ej., puntaje Saber 11, grupo SISBÉN, vulnerabilidad estructural) y, si persiste, sorteo reproducible con semilla fija.</p>
+          </details>
+        </section>
+
+        <!-- 10. Licencia y contacto -->
+        <section id="s10" class="scroll-mt-20">
+          <h2 class="text-3xl font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">10) Licencia y contacto</h2>
+          <p>El código y la construcción de indicadores fueron desarrollados por la Agencia Distrital para la Educación Superior, la Ciencia y la Tecnología – ATENEA.
+Este material se distribuye bajo la licencia Creative Commons Attribution 4.0 International (CC BY 4.0), en concordancia con la <a class="text-indigo-700 underline" href="https://agenciaatenea.gov.co/sites/default/files/2024-10/po2_de_politica_de_derechos_de_autor._v1_0.pdf" target="_blank" rel="noopener">Política de Derechos de Autor y Uso de Datos de ATENEA</a>.
+El código y la construcción de indicadores fueron desarrollados por la Agencia Distrital para la Educación Superior, la Ciencia y la Tecnología – ATENEA. El material se distribuye bajo la licencia. Al reproducir o adaptar el material, se debe citar a la Agencia Distrital para la Educación Superior, la Ciencia y la Tecnología – ATENEA como fuente.</p>
+<p>Este material explica a alto nivel el proceso de selección en FEST1 – Bogotá, con base en el <a class="text-indigo-700 underline" href="https://github.com/ATENEA-SAIGC/Selecci-n-JE3/blob/main/JE3_Bogota_Calculos_UDEA.R" target="_blank" rel="noopener">script operativo en R</a>. Para consultas remitirse a <a class="text-indigo-700 underline" href="https://www.agenciaatenea.gov.co/atencion-y-servicios-la-ciudadania" target="_blank" rel="noopener">Agencia Atenea</a>.</p>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Script: resaltar link activo y copiar código -->
+  <script>
+    // Active section highlight
+    const navLinks = [...document.querySelectorAll('.nav-link')];
+    const sections = navLinks.map(l => document.querySelector(l.getAttribute('href')));
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const idx = sections.indexOf(entry.target);
+        if (idx >= 0) {
+          if (entry.isIntersecting) navLinks[idx].classList.add('active');
+          else navLinks[idx].classList.remove('active');
+        }
+      });
+    }, { rootMargin: '-40% 0px -50% 0px', threshold: 0.1 });
+
+    sections.forEach(s => s && obs.observe(s));
+  </script>
+</body>
+</html>
